@@ -360,32 +360,46 @@ def fetch_market_data(ticker, interval, period):
         st.error(f"Error fetching data: {str(e)}")
         return None
 
+# MODIFIED AND CORRECTED find_support_resistance function
 def find_support_resistance(df, n_levels=5):
     """Find support and resistance levels using price extremes"""
     if 'Close' not in df.columns or df.empty:
         return [], []
-        
+
     prices = df['Close'].values
-    
-    supports = []
-    resistances = []
-    
+
+    supports = [] # Initialized as a list
+    resistances = [] # Initialized as a list
+
+    # Loop to find raw support/resistance levels
     for i in range(2, len(prices) - 2):
+        # Support: local minimum
         if prices[i] < prices[i-1] and prices[i] < prices[i-2] and \
            prices[i] < prices[i+1] and prices[i] < prices[i+2]:
-            supports.append(prices[i])
-            
+            supports.append(prices[i]) # Appends a float to the list 'supports'
+
+        # Resistance: local maximum
         if prices[i] > prices[i-1] and prices[i] > prices[i-2] and \
            prices[i] > prices[i+1] and prices[i] > prices[i+2]:
-            resistances.append(prices[i])
-    
-    supports = sorted(list(set(supports))) # Remove duplicates
-    resistances = sorted(list(set(resistances)), reverse=True) # Remove duplicates
-    
+            resistances.append(prices[i]) # Appends a float to the list 'resistances'
+
+    # At this point, 'supports' and 'resistances' are lists (possibly empty).
+    # The set operation is applied to these lists to get unique values.
+    if supports: # Check if list is not empty before set operation for safety, though set([]) is valid
+        supports = sorted(list(set(supports)))
+    else:
+        supports = [] # Ensure it's an empty list if no supports found
+
+    if resistances: # Check if list is not empty
+        resistances = sorted(list(set(resistances)), reverse=True)
+    else:
+        resistances = [] # Ensure it's an empty list if no resistances found
+
     clustered_supports = []
     clustered_resistances = []
-    
-    if supports:
+
+    # Clustering logic for supports
+    if supports: # 'supports' is now a sorted list of unique support levels (or empty)
         threshold = (max(prices) - min(prices)) * 0.01 if (max(prices) - min(prices)) > 0 else 0.01
         current_level = supports[0]
         current_cluster = [current_level]
@@ -398,8 +412,9 @@ def find_support_resistance(df, n_levels=5):
                 current_cluster = [current_level]
         if current_cluster: # Add last cluster
             clustered_supports.append(sum(current_cluster) / len(current_cluster))
-    
-    if resistances:
+
+    # Clustering logic for resistances
+    if resistances: # 'resistances' is now a sorted list of unique resistance levels (or empty)
         threshold = (max(prices) - min(prices)) * 0.01 if (max(prices) - min(prices)) > 0 else 0.01
         current_level = resistances[0]
         current_cluster = [current_level]
@@ -412,8 +427,9 @@ def find_support_resistance(df, n_levels=5):
                 current_cluster = [current_level]
         if current_cluster: # Add last cluster
             clustered_resistances.append(sum(current_cluster) / len(current_cluster))
-            
+
     return clustered_supports[:n_levels], clustered_resistances[:n_levels]
+
 
 def find_fair_value_gaps(df):
     """Identify fair value gaps in price data"""
@@ -473,15 +489,15 @@ def get_ai_analysis(data, analysis_types, symbol_ticker, timeframe): # MODIFIED:
         low_val = float(data['Low'].min())
         vol_val = int(float(data['Volume'].sum()))
         
-        sma9 = float(data['SMA_9'].iloc[-1]) if 'SMA_9' in data.columns and not data['SMA_9'].empty else None
-        sma20 = float(data['SMA_20'].iloc[-1]) if 'SMA_20' in data.columns and not data['SMA_20'].empty else None
-        sma50 = float(data['SMA_50'].iloc[-1]) if 'SMA_50' in data.columns and not data['SMA_50'].empty else None
+        sma9 = float(data['SMA_9'].iloc[-1]) if 'SMA_9' in data.columns and not data['SMA_9'].empty and not data['SMA_9'].iloc[-1:].isnull().all() else None
+        sma20 = float(data['SMA_20'].iloc[-1]) if 'SMA_20' in data.columns and not data['SMA_20'].empty and not data['SMA_20'].iloc[-1:].isnull().all() else None
+        sma50 = float(data['SMA_50'].iloc[-1]) if 'SMA_50' in data.columns and not data['SMA_50'].empty and not data['SMA_50'].iloc[-1:].isnull().all() else None
         
-        macd = float(data['MACD'].iloc[-1]) if 'MACD' in data.columns and not data['MACD'].empty else None
-        macd_signal = float(data['MACD_Signal'].iloc[-1]) if 'MACD_Signal' in data.columns and not data['MACD_Signal'].empty else None
-        macd_hist = float(data['MACD_Hist'].iloc[-1]) if 'MACD_Hist' in data.columns and not data['MACD_Hist'].empty else None
+        macd = float(data['MACD'].iloc[-1]) if 'MACD' in data.columns and not data['MACD'].empty and not data['MACD'].iloc[-1:].isnull().all() else None
+        macd_signal = float(data['MACD_Signal'].iloc[-1]) if 'MACD_Signal' in data.columns and not data['MACD_Signal'].empty and not data['MACD_Signal'].iloc[-1:].isnull().all() else None
+        macd_hist = float(data['MACD_Hist'].iloc[-1]) if 'MACD_Hist' in data.columns and not data['MACD_Hist'].empty and not data['MACD_Hist'].iloc[-1:].isnull().all() else None
         
-        rsi = float(data['RSI'].iloc[-1]) if 'RSI' in data.columns and not data['RSI'].empty else None
+        rsi = float(data['RSI'].iloc[-1]) if 'RSI' in data.columns and not data['RSI'].empty and not data['RSI'].iloc[-1:].isnull().all() else None
         
         market_stats = (
             f"Current Price: ${current_price:.2f}\n"
@@ -491,7 +507,7 @@ def get_ai_analysis(data, analysis_types, symbol_ticker, timeframe): # MODIFIED:
             f"Volume: {vol_val:,}\n"
         )
         
-        supports, resistances = find_support_resistance(data)
+        supports, resistances = find_support_resistance(data) # This will use the corrected function
         scalar_supports = [float(s.item() if hasattr(s, 'item') else s) for s in supports[:3]]
         scalar_resistances = [float(r.item() if hasattr(r, 'item') else r) for r in resistances[:3]]
         
@@ -631,9 +647,9 @@ def get_ai_analysis(data, analysis_types, symbol_ticker, timeframe): # MODIFIED:
                 **Momentum:**
                 """
                 if macd > macd_signal and macd_hist > 0: analysis += "- Bullish momentum is increasing"
-                elif macd > macd_signal and macd_hist <= 0: analysis += "- Bullish momentum is emerging" # Corrected condition
+                elif macd > macd_signal and macd_hist <= 0: analysis += "- Bullish momentum is emerging" 
                 elif macd < macd_signal and macd_hist < 0: analysis += "- Bearish momentum is increasing"
-                elif macd < macd_signal and macd_hist >= 0: analysis += "- Bearish momentum is emerging" # Corrected condition
+                elif macd < macd_signal and macd_hist >= 0: analysis += "- Bearish momentum is emerging" 
                 else: analysis += "- Neutral or transitioning momentum."
 
             if rsi is not None:
@@ -775,7 +791,7 @@ with st.spinner('Calculating trading signals...'):
                 st.warning(f"Skipping signal calculation at index {i} due to: {e}")
                 continue
 
-supports, resistances = find_support_resistance(df)
+supports, resistances = find_support_resistance(df) # This will use the corrected function
 fvgs = find_fair_value_gaps(df)
 
 fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
@@ -911,8 +927,8 @@ col_sr1, col_sr2 = st.columns(2) # Renamed support/resistance columns
 with col_sr1:
     st.markdown("<h4 style='color:#26a69a;'>Support Levels</h4>", unsafe_allow_html=True)
     current_price_for_sr = df["Close"].iloc[-1] if not df.empty else 0 # Define here for scope
-    for level in supports[:5]:
-        level_value = level.item() if hasattr(level, 'item') else float(level)
+    for level in supports[:5]: # 'supports' is from the corrected find_support_resistance
+        level_value = level # Already a float from clustered_supports
         distance_str = "N/A"
         if current_price_for_sr != 0:
             distance = ((level_value / current_price_for_sr) - 1) * 100
@@ -920,8 +936,8 @@ with col_sr1:
         st.markdown(f"<div style='background:#1c2030; padding:10px; margin:5px 0; border-radius:5px; border-left:4px solid #26a69a;'>${level_value:.2f} <span style='color:#9ca3af; float:right;'>({distance_str})</span></div>", unsafe_allow_html=True)
 with col_sr2:
     st.markdown("<h4 style='color:#ef5350;'>Resistance Levels</h4>", unsafe_allow_html=True)
-    for level in resistances[:5]:
-        level_value = level.item() if hasattr(level, 'item') else float(level)
+    for level in resistances[:5]: # 'resistances' is from the corrected find_support_resistance
+        level_value = level # Already a float from clustered_resistances
         distance_str = "N/A"
         if current_price_for_sr != 0:
             distance = ((level_value / current_price_for_sr) - 1) * 100
